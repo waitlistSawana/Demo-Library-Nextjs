@@ -1,0 +1,70 @@
+import React, { useState } from "react";
+import { PDFDocument } from "pdf-lib";
+import { saveAs } from "file-saver";
+
+interface PageProps {
+  pdfFileSource?: string;
+}
+
+const DownloadSpecificPagePDF = ({ pdfFileSource }: PageProps) => {
+  const [pageNumber, setPageNumber] = useState(1);
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  if (!pdfFileSource) return null;
+
+  const downloadSpecificPage = async () => {
+    setDownloading(true);
+    setError("");
+
+    try {
+      // Load PDF from Data URL
+      const pdfBytes = await fetch(pdfFileSource).then((res) =>
+        res.arrayBuffer(),
+      );
+      const pdfDoc = await PDFDocument.load(pdfBytes);
+
+      if (pageNumber <= 0 || pageNumber > pdfDoc.getPageCount()) {
+        setError("Invalid page number");
+        setDownloading(false);
+        return;
+      }
+
+      const newPdfDoc = await PDFDocument.create();
+      const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [pageNumber - 1]);
+      newPdfDoc.addPage(copiedPage);
+
+      const newPdfBytes = await newPdfDoc.save();
+
+      const blob = new Blob([newPdfBytes], { type: "application/pdf" });
+
+      // Use file-saver for client-side download
+      saveAs(blob, `page_${pageNumber}.pdf`);
+    } catch (err) {
+      setError("Failed to load PDF or download page");
+      console.error("Error processing PDF:", err);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div>
+      <label>
+        Page Number:
+        <input
+          type="number"
+          value={pageNumber}
+          onChange={(e) => setPageNumber(parseInt(e.target.value, 10))}
+        />
+      </label>
+
+      <button onClick={downloadSpecificPage} disabled={downloading}>
+        {downloading ? "Downloading..." : "Download Specific Page"}
+      </button>
+      {error && <div style={{ color: "red" }}>{error}</div>}
+    </div>
+  );
+};
+
+export default DownloadSpecificPagePDF;
